@@ -351,6 +351,9 @@ bool TypeChecker::visit(FunctionDefinition const& _function)
 	if (_function.overrides() && _function.isFree())
 		m_errorReporter.syntaxError(1750_error, _function.location(), "Free functions cannot override.");
 
+	if (!_function.modifiers().empty() && _function.isFree())
+		m_errorReporter.syntaxError(6261_error, _function.location(), "Free functions cannot have modifiers.");
+
 	if (_function.isPayable())
 	{
 		if (_function.libraryFunction())
@@ -538,7 +541,7 @@ bool TypeChecker::visit(VariableDeclaration const& _variable)
 
 		if (!_variable.value())
 			m_errorReporter.typeError(4266_error, _variable.location(), "Uninitialized \"constant\" variable.");
-		else if (!_variable.value()->annotation().isPure)
+		else if (!*_variable.value()->annotation().isPure)
 			m_errorReporter.typeError(
 				8349_error,
 				_variable.value()->location(),
@@ -1298,9 +1301,11 @@ bool TypeChecker::visit(Conditional const& _conditional)
 
 	_conditional.annotation().type = commonType;
 	_conditional.annotation().isPure =
-		_conditional.condition().annotation().isPure &&
-		_conditional.trueExpression().annotation().isPure &&
-		_conditional.falseExpression().annotation().isPure;
+		*_conditional.condition().annotation().isPure &&
+		*_conditional.trueExpression().annotation().isPure &&
+		*_conditional.falseExpression().annotation().isPure;
+
+	_conditional.annotation().isLValue = false;
 
 	if (_conditional.annotation().willBeWrittenTo)
 		m_errorReporter.typeError(
@@ -1354,6 +1359,8 @@ bool TypeChecker::visit(Assignment const& _assignment)
 	);
 	TypePointer t = type(_assignment.leftHandSide());
 	_assignment.annotation().type = t;
+	_assignment.annotation().isPure = false;
+	_assignment.annotation().isLValue = false;
 
 	checkExpressionAssignment(*t, _assignment.leftHandSide());
 
@@ -1413,7 +1420,7 @@ bool TypeChecker::visit(TupleExpression const& _tuple)
 			{
 				requireLValue(
 					*component,
-					_tuple.annotation().lValueOfOrdinaryAssignment
+					*_tuple.annotation().lValueOfOrdinaryAssignment
 				);
 				types.push_back(type(*component));
 			}
@@ -1425,6 +1432,7 @@ bool TypeChecker::visit(TupleExpression const& _tuple)
 			_tuple.annotation().type = TypeProvider::tuple(move(types));
 		// If some of the components are not LValues, the error is reported above.
 		_tuple.annotation().isLValue = true;
+		_tuple.annotation().isPure = false;
 	}
 	else
 	{
@@ -1464,7 +1472,7 @@ bool TypeChecker::visit(TupleExpression const& _tuple)
 				else if (inlineArrayType)
 					inlineArrayType = Type::commonType(inlineArrayType, types[i]);
 			}
-			if (!components[i]->annotation().isPure)
+			if (!*components[i]->annotation().isPure)
 				isPure = false;
 		}
 		_tuple.annotation().isPure = isPure;
@@ -1495,6 +1503,7 @@ bool TypeChecker::visit(TupleExpression const& _tuple)
 				_tuple.annotation().type = TypeProvider::tuple(move(types));
 		}
 
+		_tuple.annotation().isLValue = false;
 	}
 	return false;
 }
@@ -1522,7 +1531,8 @@ bool TypeChecker::visit(UnaryOperation const& _operation)
 		t = subExprType;
 	}
 	_operation.annotation().type = t;
-	_operation.annotation().isPure = !modifying && _operation.subExpression().annotation().isPure;
+	_operation.annotation().isPure = !modifying && *_operation.subExpression().annotation().isPure;
+	_operation.annotation().isLValue = false;
 	return false;
 }
 
@@ -1553,8 +1563,9 @@ void TypeChecker::endVisit(BinaryOperation const& _operation)
 		TypeProvider::boolean() :
 		commonType;
 	_operation.annotation().isPure =
-		_operation.leftExpression().annotation().isPure &&
-		_operation.rightExpression().annotation().isPure;
+		*_operation.leftExpression().annotation().isPure &&
+		*_operation.rightExpression().annotation().isPure;
+	_operation.annotation().isLValue = false;
 
 	if (_operation.getOperator() == Token::Exp || _operation.getOperator() == Token::SHL)
 	{
@@ -2175,7 +2186,7 @@ bool TypeChecker::visit(FunctionCall const& _functionCall)
 	for (ASTPointer<Expression const> const& argument: arguments)
 	{
 		argument->accept(*this);
-		if (!argument->annotation().isPure)
+		if (!*argument->annotation().isPure)
 			argumentsArePure = false;
 	}
 
@@ -2199,6 +2210,8 @@ bool TypeChecker::visit(FunctionCall const& _functionCall)
 	FunctionCallAnnotation& funcCallAnno = _functionCall.annotation();
 	FunctionTypePointer functionType = nullptr;
 
+	bool isLValue = false;
+
 	// Determine and assign function call kind, lvalue, purity and function type for this FunctionCall node
 	switch (expressionType->category())
 	{
@@ -2209,7 +2222,7 @@ bool TypeChecker::visit(FunctionCall const& _functionCall)
 		// Purity for function calls also depends upon the callee and its FunctionType
 		funcCallAnno.isPure =
 			argumentsArePure &&
-			_functionCall.expression().annotation().isPure &&
+			*_functionCall.expression().annotation().isPure &&
 			functionType &&
 			functionType->isPure();
 
@@ -2217,7 +2230,7 @@ bool TypeChecker::visit(FunctionCall const& _functionCall)
 			functionType->kind() == FunctionType::Kind::ArrayPush ||
 			functionType->kind() == FunctionType::Kind::ByteArrayPush
 		)
-			funcCallAnno.isLValue = functionType->parameterTypes().empty();
+			isLValue = functionType->parameterTypes().empty();
 
 		break;
 
@@ -2237,13 +2250,11 @@ bool TypeChecker::visit(FunctionCall const& _functionCall)
 				);
 			functionType = dynamic_cast<StructType const&>(*actualType).constructorType();
 			funcCallAnno.kind = FunctionCallKind::StructConstructorCall;
-			funcCallAnno.isPure = argumentsArePure;
 		}
 		else
-		{
 			funcCallAnno.kind = FunctionCallKind::TypeConversion;
-			funcCallAnno.isPure = argumentsArePure;
-		}
+
+		funcCallAnno.isPure = argumentsArePure;
 
 		break;
 	}
@@ -2255,6 +2266,8 @@ bool TypeChecker::visit(FunctionCall const& _functionCall)
 		funcCallAnno.isPure = argumentsArePure;
 		break;
 	}
+
+	funcCallAnno.isLValue = isLValue;
 
 	// Determine return types
 	switch (*funcCallAnno.kind)
@@ -2325,6 +2338,8 @@ bool TypeChecker::visit(FunctionCallOptions const& _functionCallOptions)
 	_functionCallOptions.expression().annotation().arguments = _functionCallOptions.annotation().arguments;
 
 	_functionCallOptions.expression().accept(*this);
+
+	_functionCallOptions.annotation().isPure = *_functionCallOptions.expression().annotation().isPure;
 
 	auto expressionFunctionType = dynamic_cast<FunctionType const*>(type(_functionCallOptions.expression()));
 	if (!expressionFunctionType)
@@ -2486,6 +2501,7 @@ void TypeChecker::endVisit(NewExpression const& _newExpression)
 		}
 
 		_newExpression.annotation().type = FunctionType::newExpressionType(*contract);
+		_newExpression.annotation().isPure = false;
 	}
 	else if (type->category() == Type::Category::Array)
 	{
@@ -2674,11 +2690,16 @@ bool TypeChecker::visit(MemberAccess const& _memberAccess)
 				functionType &&
 				functionType->kind() == FunctionType::Kind::Declaration
 			)
-				annotation.isPure = _memberAccess.expression().annotation().isPure;
+				annotation.isPure = *_memberAccess.expression().annotation().isPure;
 		}
 	}
 	else if (exprType->category() == Type::Category::Module)
-		annotation.isPure = _memberAccess.expression().annotation().isPure;
+	{
+		annotation.isPure = *_memberAccess.expression().annotation().isPure;
+		annotation.isLValue = false;
+	}
+	else
+		annotation.isLValue = false;
 
 	// TODO some members might be pure, but for example `address(0x123).balance` is not pure
 	// although every subexpression is, so leaving this limited for now.
@@ -2694,11 +2715,14 @@ bool TypeChecker::visit(MemberAccess const& _memberAccess)
 	)
 		if (auto const* parentAccess = dynamic_cast<MemberAccess const*>(&_memberAccess.expression()))
 		{
-			annotation.isPure = parentAccess->expression().annotation().isPure;
+			bool isPure = *parentAccess->expression().annotation().isPure;
 			if (auto const* exprInt = dynamic_cast<Identifier const*>(&parentAccess->expression()))
 				if (exprInt->name() == "this" || exprInt->name() == "super")
-					annotation.isPure = true;
+					isPure = true;
+
+			annotation.isPure = isPure;
 		}
+
 	if (auto magicType = dynamic_cast<MagicType const*>(exprType))
 	{
 		if (magicType->kind() == MagicType::Kind::ABI)
@@ -2746,6 +2770,9 @@ bool TypeChecker::visit(MemberAccess const& _memberAccess)
 			annotation.isPure = true;
 	}
 
+	if (!annotation.isPure.set())
+		annotation.isPure = false;
+
 	return false;
 }
 
@@ -2755,7 +2782,7 @@ bool TypeChecker::visit(IndexAccess const& _access)
 	TypePointer baseType = type(_access.baseExpression());
 	TypePointer resultType = nullptr;
 	bool isLValue = false;
-	bool isPure = _access.baseExpression().annotation().isPure;
+	bool isPure = *_access.baseExpression().annotation().isPure;
 	Expression const* index = _access.indexExpression();
 	switch (baseType->category())
 	{
@@ -2857,7 +2884,7 @@ bool TypeChecker::visit(IndexAccess const& _access)
 	}
 	_access.annotation().type = resultType;
 	_access.annotation().isLValue = isLValue;
-	if (index && !index->annotation().isPure)
+	if (index && !*index->annotation().isPure)
 		isPure = false;
 	_access.annotation().isPure = isPure;
 
@@ -2869,18 +2896,18 @@ bool TypeChecker::visit(IndexRangeAccess const& _access)
 	_access.baseExpression().accept(*this);
 
 	bool isLValue = false; // TODO: set this correctly when implementing slices for memory and storage arrays
-	bool isPure = _access.baseExpression().annotation().isPure;
+	bool isPure = *_access.baseExpression().annotation().isPure;
 
 	if (Expression const* start = _access.startExpression())
 	{
 		expectType(*start, *TypeProvider::uint256());
-		if (!start->annotation().isPure)
+		if (!*start->annotation().isPure)
 			isPure = false;
 	}
 	if (Expression const* end = _access.endExpression())
 	{
 		expectType(*end, *TypeProvider::uint256());
-		if (!end->annotation().isPure)
+		if (!*end->annotation().isPure)
 			isPure = false;
 	}
 
@@ -3029,14 +3056,13 @@ bool TypeChecker::visit(Identifier const& _identifier)
 	if (auto variableDeclaration = dynamic_cast<VariableDeclaration const*>(annotation.referencedDeclaration))
 		annotation.isPure = annotation.isConstant = variableDeclaration->isConstant();
 	else if (dynamic_cast<MagicVariableDeclaration const*>(annotation.referencedDeclaration))
-	{
-		if (dynamic_cast<FunctionType const*>(annotation.type))
-			annotation.isPure = true;
-	}
+		annotation.isPure = dynamic_cast<FunctionType const*>(annotation.type);
 	else if (dynamic_cast<TypeType const*>(annotation.type))
 		annotation.isPure = true;
 	else if (dynamic_cast<ModuleType const*>(annotation.type))
 		annotation.isPure = true;
+	else
+		annotation.isPure = false;
 
 	// Check for deprecated function names.
 	// The check is done here for the case without an actual function call.
@@ -3077,6 +3103,7 @@ void TypeChecker::endVisit(ElementaryTypeNameExpression const& _expr)
 {
 	_expr.annotation().type = TypeProvider::typeType(TypeProvider::fromElementaryTypeName(_expr.type().typeName(), _expr.type().stateMutability()));
 	_expr.annotation().isPure = true;
+	_expr.annotation().isLValue = false;
 }
 
 void TypeChecker::endVisit(Literal const& _literal)
@@ -3132,6 +3159,7 @@ void TypeChecker::endVisit(Literal const& _literal)
 		m_errorReporter.fatalTypeError(2826_error, _literal.location(), "Invalid literal value.");
 
 	_literal.annotation().isPure = true;
+	_literal.annotation().isLValue = false;
 }
 
 void TypeChecker::endVisit(UsingForDirective const& _usingFor)
@@ -3216,7 +3244,7 @@ void TypeChecker::requireLValue(Expression const& _expression, bool _ordinaryAss
 	_expression.annotation().lValueOfOrdinaryAssignment = _ordinaryAssignment;
 	_expression.accept(*this);
 
-	if (_expression.annotation().isLValue)
+	if (*_expression.annotation().isLValue)
 		return;
 
 	auto [errorId, description] = [&]() -> tuple<ErrorId, string> {
