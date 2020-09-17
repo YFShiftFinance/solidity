@@ -122,15 +122,12 @@ void StackToMemoryMover::operator()(Block& _block)
 		auto const& _variables,
 		std::unique_ptr<Expression> _value
 	) -> std::vector<Statement> {
-		if (_variables.size() == 1)
-			return generateMemoryStore(
-				m_context.dialect,
-				_loc,
-				memoryOffset(_variables.front().name),
-				_value ? *std::move(_value) : Literal{_loc, LiteralKind::Number, "0"_yulstring, {}}
-			);
-
 		VariableDeclaration tempDecl{_loc, {}, std::move(_value)};
+		if (!tempDecl.value)
+		{
+			yulAssert(_variables.size() == 1, "");
+			tempDecl.value = std::make_unique<Expression>(Literal{_loc, LiteralKind::Number, "0"_yulstring, {}});
+		}
 		vector<Statement> memoryAssignments;
 		vector<Statement> variableAssignments;
 		for (auto& var: _variables)

@@ -8,6 +8,7 @@
 //
 // {
 //     mstore(0x40, memoryguard(0xa0))
-//     mstore(0x80, 42)
+//     let $x_1 := 42
+//     mstore(0x80, $x_1)
 //     sstore(42, mload(0x80))
 // }

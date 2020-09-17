@@ -12,7 +12,8 @@
 //
 // {
 //     mstore(0x40, memoryguard(0x40))
-//     mstore(0x00, 0)
+//     let $x_1 := 0
+//     mstore(0x00, $x_1)
 //     sstore(0, mload(0x00))
 //     function h($hx) -> y
 //     { y := $hx }

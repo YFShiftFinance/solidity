@@ -174,7 +174,8 @@
 //     }
 //     function f() -> v
 //     {
-//         mstore(0x80, calldataload(mul(1, 4)))
+//         let a1_1 := calldataload(mul(1, 4))
+//         mstore(0x80, a1_1)
 //         let a2 := calldataload(mul(2, 4))
 //         let a3 := calldataload(mul(3, 4))
 //         let a4 := calldataload(g())
@@ -183,7 +184,8 @@
 //         let a7 := calldataload(mul(7, 4))
 //         let a8 := calldataload(mul(8, 4))
 //         let a9 := calldataload(mul(9, 4))
-//         mstore(0x80, calldataload(mul(0, 4)))
+//         let a1_3 := calldataload(mul(0, 4))
+//         mstore(0x80, a1_3)
 //         let a10 := calldataload(mul(10, 4))
 //         let a11 := calldataload(mul(11, 4))
 //         let a12 := calldataload(mul(12, 4))
@@ -213,7 +215,8 @@
 //     }
 //     function g() -> v_1
 //     {
-//         mstore(0xc0, calldataload(mul(1, 4)))
+//         let a1_2_4 := calldataload(mul(1, 4))
+//         mstore(0xc0, a1_2_4)
 //         let a2_3 := calldataload(mul(2, 4))
 //         let a3_4 := calldataload(mul(3, 4))
 //         let a4_5 := calldataload(mul(4, 4))
@@ -222,7 +225,8 @@
 //         let a7_8 := calldataload(mul(7, 4))
 //         let a8_9 := calldataload(mul(8, 4))
 //         let a9_10 := calldataload(mul(9, 4))
-//         mstore(0xc0, calldataload(mul(0, 4)))
+//         let a1_2_5 := calldataload(mul(0, 4))
+//         mstore(0xc0, a1_2_5)
 //         let a10_11 := calldataload(mul(10, 4))
 //         let a11_12 := calldataload(mul(11, 4))
 //         let a12_13 := calldataload(mul(12, 4))
@@ -253,8 +257,10 @@
 //     }
 //     function h() -> v_19
 //     {
-//         mstore(0xa0, calldataload(mul(1, 4)))
-//         mstore(0xc0, calldataload(mul(2, 4)))
+//         let a1_20_6 := calldataload(mul(1, 4))
+//         mstore(0xa0, a1_20_6)
+//         let a2_21_7 := calldataload(mul(2, 4))
+//         mstore(0xc0, a2_21_7)
 //         let a3_22 := calldataload(mul(3, 4))
 //         let a4_23 := calldataload(mul(4, 4))
 //         let a5_24 := calldataload(mul(5, 4))
@@ -264,8 +270,10 @@
 //         let a9_28 := calldataload(mul(9, 4))
 //         let a10_29 := calldataload(mul(10, 4))
 //         let a11_30 := calldataload(mul(10, 4))
-//         mstore(0xa0, calldataload(mul(0, 4)))
-//         mstore(0xc0, calldataload(mul(1, 4)))
+//         let a1_20_8 := calldataload(mul(0, 4))
+//         mstore(0xa0, a1_20_8)
+//         let a2_21_9 := calldataload(mul(1, 4))
+//         mstore(0xc0, a2_21_9)
 //         let a12_31 := calldataload(mul(12, 4))
 //         let a13_32 := calldataload(mul(13, 4))
 //         let a14_33 := calldataload(mul(14, 4))
@@ -298,7 +306,8 @@
 //     }
 //     function i() -> v_37
 //     {
-//         mstore(0xe0, calldataload(mul(1, 4)))
+//         let a1_38_10 := calldataload(mul(1, 4))
+//         mstore(0xe0, a1_38_10)
 //         let a2_39 := calldataload(mul(2, 4))
 //         let a3_40 := calldataload(mul(3, 4))
 //         let a4_41 := calldataload(mul(4, 4))
@@ -307,7 +316,8 @@
 //         let a7_44 := calldataload(mul(7, 4))
 //         let a8_45 := calldataload(mul(8, 4))
 //         let a9_46 := calldataload(mul(9, 4))
-//         mstore(0xe0, calldataload(mul(0, 4)))
+//         let a1_38_11 := calldataload(mul(0, 4))
+//         mstore(0xe0, a1_38_11)
 //         let a10_47 := calldataload(mul(10, 4))
 //         let a11_48 := calldataload(mul(11, 4))
 //         let a12_49 := calldataload(mul(12, 4))
