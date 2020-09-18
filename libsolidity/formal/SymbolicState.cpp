@@ -16,7 +16,6 @@
 */
 // SPDX-License-Identifier: GPL-3.0
 
-#include "libsmtutil/SolverInterface.h"
 #include <libsolidity/formal/SymbolicState.h>
 
 #include <libsolidity/formal/SymbolicTypes.h>
@@ -55,11 +54,58 @@ void SymbolicState::reset()
 	m_stateTuple->resetIndex();
 }
 
+void SymbolicState::reset(unsigned _idx)
+{
+	m_error.setIndex(_idx);
+	m_thisAddress.setIndex(_idx);
+	m_stateTuple->setIndex(_idx);
+}
+
 // Blockchain
+
+SymbolicIntVariable& SymbolicState::errorFlag()
+{
+	return m_error;
+}
+
+SortPointer SymbolicState::errorFlagSort()
+{
+	return m_error.sort();
+}
 
 smtutil::Expression SymbolicState::thisAddress()
 {
 	return m_thisAddress.currentValue();
+}
+
+smtutil::Expression SymbolicState::thisAddress(unsigned _idx)
+{
+	return m_thisAddress.valueAtIndex(_idx);
+}
+
+SortPointer SymbolicState::thisAddressSort()
+{
+	return m_thisAddress.sort();
+}
+
+smtutil::Expression SymbolicState::state()
+{
+	return m_stateTuple->currentValue();
+}
+
+smtutil::Expression SymbolicState::state(unsigned _idx)
+{
+	return m_stateTuple->valueAtIndex(_idx);
+}
+
+SortPointer SymbolicState::stateSort()
+{
+	return m_stateTuple->sort();
+}
+
+void SymbolicState::newState()
+{
+	m_stateTuple->increaseIndex();
 }
 
 smtutil::Expression SymbolicState::balances()
@@ -75,21 +121,6 @@ smtutil::Expression SymbolicState::balance()
 smtutil::Expression SymbolicState::balance(smtutil::Expression _address)
 {
 	return smtutil::Expression::select(balances(), move(_address));
-}
-
-SymbolicIntVariable& SymbolicState::errorFlag()
-{
-	return m_error;
-}
-
-smtutil::Expression SymbolicState::state()
-{
-	return m_stateTuple->currentValue();
-}
-
-SortPointer SymbolicState::stateSort()
-{
-	return m_stateTuple->sort();
 }
 
 void SymbolicState::transfer(smtutil::Expression _from, smtutil::Expression _to, smtutil::Expression _value)
