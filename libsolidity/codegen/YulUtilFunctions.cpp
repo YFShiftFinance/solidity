@@ -1065,6 +1065,53 @@ string YulUtilFunctions::clearStorageArrayFunction(ArrayType const& _type)
 	});
 }
 
+string YulUtilFunctions::clearStorageStructFunction(StructType const& _type)
+{
+	solAssert(_type.location() == DataLocation::Storage, "");
+
+	string functionName = "clear_struct_storage_" + _type.identifier();
+
+	return m_functionCollector.createFunction(functionName, [&] {
+		auto const& structType = dynamic_cast<StructType const&>(_type);
+		MemberList::MemberMap structMembers = structType.nativeMembers(nullptr);
+		vector<map<string, string>> memberSetValues;
+
+		for (auto member: structMembers)
+			if (member.type->isDynamicallyEncoded())
+			{
+				auto const& [memberSlotDiff, memberStorageOffset] = structType.storageOffsetsOfMember(member.name);
+
+				memberSetValues.emplace_back(map<string, string>{{"clearMember", Whiskers(R"(
+					{
+						<setZero>(add(slot, <memberSlotDiff>), <memberStorageOffset>)
+					}
+					)")
+					("setZero", storageSetToZeroFunction(*member.type))
+					("memberSlotDiff",  memberSlotDiff.str())
+					("memberStorageOffset", to_string(memberStorageOffset))
+					.render()
+				}});
+			}
+
+		return Whiskers(R"(
+			function <functionName>(slot) {
+				<#member>
+					<clearMember>
+				</member>
+				let end := add(slot, <storageSize>)
+				for {} lt(slot, end) { slot := add(slot, 1) } {
+					sstore(slot, 0)
+				}
+			}
+		)")
+		("functionName", functionName)
+		("allocStruct", allocateMemoryStructFunction(structType))
+		("storageSize", structType.storageSize().str())
+		("member", memberSetValues)
+		.render();
+	});
+}
+
 string YulUtilFunctions::arrayConvertLengthToSize(ArrayType const& _type)
 {
 	string functionName = "array_convert_length_to_size_" + _type.identifier();
@@ -2656,6 +2703,16 @@ string YulUtilFunctions::storageSetToZeroFunction(Type const& _type)
 			)")
 			("functionName", functionName)
 			("clearArray", clearStorageArrayFunction(dynamic_cast<ArrayType const&>(_type)))
+			.render();
+		else if (_type.category() == Type::Category::Struct)
+			return Whiskers(R"(
+				function <functionName>(slot, offset) {
+					if iszero(eq(offset, 0)) { invalid() }
+					<clearStruct>(slot)
+				}
+			)")
+			("functionName", functionName)
+			("clearStruct", clearStorageStructFunction(dynamic_cast<StructType const&>(_type)))
 			.render();
 		else
 			solUnimplemented("setToZero for type " + _type.identifier() + " not yet implemented!");
